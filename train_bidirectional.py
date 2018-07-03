@@ -141,6 +141,115 @@ class Trainer:
                         timeSince(start, iter/n_iter), iter, iter/n_iter*100,
                         print_loss_avg))
 
+    # Function to train data in general
+    def trainOneStepV2(self, source_var, target_var, criterion):
+
+        # encoder training side
+        source_len = len(source_var)
+        target_len = len(target_var)
+
+        encoder_outputs,encoder_hidden,projected_hidden = self.encoder(source_var)
+
+        loss = 0
+
+        # decoder training side
+        decoder_input = Variable(torch.LongTensor([self.decoder.lang.word2index[params.SOS_TOKEN]]))
+        if params.USE_CUDA :
+            decoder_input = decoder_input.cuda()
+        decoder_hidden = projected_hidden
+
+        # probabilistic step, set teacher forcing ration to 0 to disable
+        if random.random() < self.teacher_forcing_r:
+            # use teacher forcing, feed target from corpus as the next input
+            for de_idx in range(target_len):
+                decoder_output, decoder_hidden, decoder_attention = self.decoder(
+                    decoder_input, decoder_hidden, encoder_outputs)
+                target = torch.tensor([target_var[de_idx]])
+                if params.USE_CUDA :
+                    target = target.cuda()
+                loss += criterion(decoder_output, target)
+                decoder_input = target_var[de_idx]
+        else:
+            # without forcing, use its own prediction as the next input
+            for de_idx in range(target_len):
+                decoder_output, decoder_hidden, decoder_attention = self.decoder(
+                    decoder_input, decoder_hidden, encoder_outputs)
+                topv, topi = decoder_output.data.topk(1)
+                ni = topi[0][0]
+
+                decoder_input = Variable(topi)
+                if de_idx >= len(target_var) :
+                    print( str(len(target_var)) + ' - ' + str(de_idx) )
+                target = torch.tensor([target_var[de_idx]])
+                if params.USE_CUDA :
+                    target = target.cuda()
+                loss += criterion(decoder_output, target)
+                if ni == self.decoder.lang.word2index[params.EOS_TOKEN]:
+                    break
+
+        # return loss.data[0] / target_len
+        # return loss.item() / target_len
+        return loss
+
+    # main function, iterating the training process
+    def train_batch(self, learning_rate=0.01, print_every=1000, epoch=1, batch_size=1):
+
+        start = time.time()
+        print_loss_total = 0
+
+        encoder_optimizer = optim.SGD(self.encoder.parameters(), lr=learning_rate)
+        decoder_optimizer = optim.SGD(self.decoder.parameters(), lr=learning_rate)
+        criterion = nn.NLLLoss()
+
+        self.processed_pairs = []
+        for pair in self.pairs :
+            self.processed_pairs.append(self.process_pair(pair))
+        training_pairs = self.processed_pairs
+
+        n_training = len(training_pairs)
+        n_total = n_training * epoch
+        progress = 0
+        # Epoch loop
+        for ep in range(epoch) :
+            print("Epoch - %d/%d"%(ep+1, epoch))
+            permutation = torch.randperm(n_training)
+
+            # Train set loop
+            for i in range(0, n_training, batch_size):
+
+                # Batch data
+                endidx = i+batch_size if i+batch_size<n_training else n_training
+                indices = permutation[i:endidx]
+
+                # Zero gradient
+                encoder_optimizer.zero_grad()
+                decoder_optimizer.zero_grad()
+                loss = 0
+
+                # Batch loop
+                for iter in range(0, len(indices)) :
+                    training_pair = training_pairs[indices[iter]]
+                    source_var = training_pair[0]
+                    target_var = training_pair[1]
+
+                    curr_loss = self.trainOneStepV2(source_var, target_var,
+                                            criterion)
+                    print_loss_total = curr_loss.item() / len(target_var)
+                    loss += curr_loss
+                    progress += 1
+
+                    if progress % print_every == 0:
+                        print_loss_avg = print_loss_total / print_every
+                        print_loss_total = 0
+                        print('{0} ({1} {2}%) {3:0.4f}'.format(
+                            timeSince(start, progress/n_total), progress, progress/n_total*100,
+                            print_loss_avg))
+
+                # back propagation, optimization
+                loss.backward()
+                encoder_optimizer.step()
+                decoder_optimizer.step()
+
     # evaluation section
     def evaluate(self, sentence):
         assert self.encoder.max_length == self.decoder.max_length
