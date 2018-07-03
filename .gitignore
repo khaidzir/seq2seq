@@ -1,0 +1,8 @@
+dataset/
+model/
+__pycache__/
+test/
+utility/__pycache__/
+word_vector/
+config.ini
+

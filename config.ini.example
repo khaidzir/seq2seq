@@ -1,0 +1,10 @@
+[MODELS]
+EncoderModel = model/encoder-embedding-100000.pt
+DecoderModel = model/decoder-embedding-100000.pt
+WordVector = word_vector/koran.vec
+
+[DATA]
+Dataset = dataset/input-output.txt
+
+[PARAMS]
+MaxLength = 50
