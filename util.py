@@ -1,10 +1,12 @@
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
+import numpy as np
 import params
 import unicodedata
 import re
 from io import open
+from simple_wordvector import SimpleWordVector
 
 numbers = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
 numbers_ext = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', ',', '.']
@@ -55,3 +57,30 @@ def get_sequence_index(sentence, word2index) :
         return retval.cuda()
     return retval
 
+# Get wordvector from text file
+def load_wordvector_text(word_vector_file):
+    
+    model = SimpleWordVector()
+    with open(word_vector_file,'r') as f :
+        setsize = False
+        for line in f :
+            split = line.split()
+            word = split[0]
+            wv = np.array( [float(val) for val in split[1:]] )
+            model[word] = wv
+            if not setsize :
+                model.vector_size = len(wv)
+                setsize = True
+    return model
+
+'''
+glovefile = '/home/prosa/Downloads/glove.6B/glove.6B.50d.txt'
+model = load_wordvector_text(glovefile)
+word = input('kata : ')
+while word != '<end>' :
+    if word in model :
+        print(model[word])
+    else :
+        print('euweuh!')
+    word = input('kata : ')
+'''
