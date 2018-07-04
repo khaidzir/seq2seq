@@ -197,8 +197,12 @@ class Trainer:
         start = time.time()
         print_loss_total = 0
 
-        encoder_optimizer = optim.SGD(self.encoder.parameters(), lr=learning_rate)
-        decoder_optimizer = optim.SGD(self.decoder.parameters(), lr=learning_rate)
+        # encoder_optimizer = optim.SGD(self.encoder.parameters(), lr=learning_rate)
+        # decoder_optimizer = optim.SGD(self.decoder.parameters(), lr=learning_rate)
+
+        encoder_optimizer = optim.RMSprop(self.encoder.parameters(), lr=learning_rate)
+        decoder_optimizer = optim.RMSprop(self.decoder.parameters(), lr=learning_rate)
+
         criterion = nn.NLLLoss()
 
         self.processed_pairs = []
