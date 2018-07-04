@@ -1,11 +1,12 @@
 import torch
 
-from model_bidirectional import WordEncoderBiRNN, PreTrainedEmbeddingEncoderBiRNN, AttnDecoderRNN
+from model_bidirectional_v1_lstm import WordEncoderBiRNN, PreTrainedEmbeddingEncoderBiRNN, AttnDecoderRNN
 from preprocess import prepareData
 from train_bidirectional import Trainer
 from preprocess import buildPairs
 from gensim.models import KeyedVectors
 import params
+from util import load_wordvector_text
 
 # train_file = '/home/prosa/Works/Text/korpus/chatbot_dataset/plain/preprocessed/split-augmented/combine/nontask/train-nontask.aug.shuffle.pre'
 # train_file = '/home/prosa/Works/Text/korpus/chatbot_dataset/plain/preprocessed/split-augmented/combine/nontask/train.test'
@@ -13,13 +14,15 @@ import params
 
 # train_file = '/home/prosa/Works/Text/mt/dataset/filter-en-id/lenlim80/sorted/train.dummy'
 # train_file = '/home/prosa/Works/Text/mt/dataset/filter-en-id/lenlim80/sorted/limit-en-id.sorted.01.txt'
-train_file = '/home/prosa/Works/Text/korpus/asr_dataset/dataset_pruned/word/dummy'
+# train_file = '/home/prosa/Works/Text/korpus/asr_dataset/dataset_pruned/word/dummy'
+train_file = '/home/prosa/Works/Text/korpus/dialogue/misc.txt'
 
 src_lang, tgt_lang, pairs = prepareData(train_file, reverse=False)
 
 # Word vector
 # word_vectors = KeyedVectors.load_word2vec_format(params.WORD_VECTORS_FILE, binary=True)
 # word_vectors = KeyedVectors.load(params.WORD_VECTORS_FILE)
+word_vectors = load_wordvector_text(params.WORD_VECTORS_FILE)
 
 '''
 ### CHATBOT ###
@@ -86,12 +89,12 @@ torch.save(attn_decoder.getAttrDict(), 'model/mt/1m/decoder-d' + str(hidden_size
 
 ### ASR Correction ###
 
-# hidden_size = word_vectors.vector_size
-hidden_size = 128
+hidden_size = word_vectors.vector_size
+# hidden_size = 128
 max_length = 80
-# encoder = WordEncoderBiRNN(hidden_size, max_length, src_lang)
-encoder = WordEncoderBiRNN(hidden_size, max_length, src_lang, seeder=params.SEEDER)
-attn_decoder = AttnDecoderRNN(hidden_size, max_length, tgt_lang, seeder=params.SEEDER)
+# encoder = WordEncoderBiRNN(hidden_size, max_length, src_lang, seeder=params.SEEDER)
+encoder = PreTrainedEmbeddingEncoderBiRNN(word_vectors, max_length, char_embed=True, seeder=params.SEEDER)
+attn_decoder = AttnDecoderRNN(hidden_size*2, max_length, tgt_lang, seeder=params.SEEDER)
 
 # Load and continue train
 # encoder_file = 'model/mt/encoder-word-en-id-d512-i10k.pt'
@@ -103,13 +106,13 @@ attn_decoder = AttnDecoderRNN(hidden_size, max_length, tgt_lang, seeder=params.S
 
 num_iter = len(pairs)
 epoch=100
+batch_size = 32
 trainer = Trainer(pairs, encoder, attn_decoder)
 # trainer.train(num_iter, print_every=num_iter//1000, epoch=epoch)
-trainer.train(num_iter, print_every=10, epoch=epoch)
+trainer.train_batch(print_every=32, epoch=epoch, batch_size=batch_size)
 # trainer.evaluateRandomly()
 trainer.evaluateTrainSet()
 
-torch.save(encoder.getAttrDict(), 'model/asr_correction/encoder-d' + str(hidden_size) + '-e' + str(epoch) + '.pt')
-torch.save(attn_decoder.getAttrDict(), 'model/asr_correction/decoder-d' + str(hidden_size) + '-e' + str(epoch) + '.pt')
+torch.save(encoder.getAttrDict(), 'model/dialogue/encoder-charembed-d' + str(hidden_size) + '-e' + str(epoch) + '.pt')
+torch.save(attn_decoder.getAttrDict(), 'model/dialogue/decoder-charembed-d' + str(hidden_size) + '-e' + str(epoch) + '.pt')
 #################
-

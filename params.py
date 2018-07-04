@@ -14,7 +14,7 @@ CHAR_LENGTH = 50
 # WORD_VECTORS_FILE = '/home/prosa/Works/Text/tools/fastText-0.1.0/data/codot_twitter_cbow.bin'
 
 # WORD2VEC CBOW
-WORD_VECTORS_FILE = '/home/prosa/Works/Text/word_embedding/word2vec/cbow/codot_combine_twitter_cbow.vec'
+# WORD_VECTORS_FILE = '/home/prosa/Works/Text/word_embedding/word2vec/cbow/codot_combine_twitter_cbow.vec'
 # WORD_VECTORS_FILE = '/home/prosa/Works/Text/word_embedding/word2vec/cbow/codot_cbow.vec'
 # WORD_VECTORS_FILE = '/home/prosa/Works/Text/word_embedding/word2vec/cbow/twitter_cbow.vec'
 
@@ -24,3 +24,6 @@ WORD_VECTORS_FILE = '/home/prosa/Works/Text/word_embedding/word2vec/cbow/codot_c
 # WORD_VECTORS_FILE = '/home/prosa/Works/Text/word_embedding/word2vec/skipgram/twitter_sgram.vec'
 
 # WORD_VECTORS_FILE = '/home/prosa/Works/Text/word_embedding/en/GoogleNews-vectors-negative300.bin'
+
+# GLOVE ENGLISH
+WORD_VECTORS_FILE = '/home/prosa/Downloads/glove.6B/glove.6B.50d.txt'

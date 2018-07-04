@@ -1,6 +1,7 @@
 import torch
 from train_bidirectional import Trainer
-from model_bidirectional import WordEncoderBiRNN, PreTrainedEmbeddingEncoderBiRNN, AttnDecoderRNN
+# from model_bidirectional import WordEncoderBiRNN, PreTrainedEmbeddingEncoderBiRNN, AttnDecoderRNN
+from model_bidirectional_v1_lstm import WordEncoderBiRNN, PreTrainedEmbeddingEncoderBiRNN, AttnDecoderRNN
 from preprocess import prepareData, unicodeToAscii, normalizeString
 import util
 from lang import Lang
@@ -22,8 +23,10 @@ def preprocessSentence(sentence, max_len) :
 # decoder_file = 'model/mt/decoder-word-en-id-d256-i20k.pt'
 # encoder_file = 'model/chatbot/fasttext/twitter_cbow/encoder-d100-e5.pt'
 # decoder_file = 'model/chatbot/fasttext/twitter_cbow/decoder-d100-e5.pt'
-encoder_file = 'model/chatbot/augmented_data/word2vec/cbow/combined_cbow/charembed_encoder-d100-e3-v2.pt'
-decoder_file = 'model/chatbot/augmented_data/word2vec/cbow/combined_cbow/charembed_decoder-d100-e3-v2.pt'
+# encoder_file = 'model/chatbot/augmented_data/word2vec/cbow/combined_cbow/charembed_encoder-d100-e3-v2.pt'
+# decoder_file = 'model/chatbot/augmented_data/word2vec/cbow/combined_cbow/charembed_decoder-d100-e3-v2.pt'
+encoder_file = 'model/dialogue/encoder-charembed-d50-e100.pt'
+decoder_file = 'model/dialogue/decoder-charembed-d50-e100.pt'
 
 # encoder_file = 'model/mt/500k/encoder-d100-e100.pt'
 # decoder_file = 'model/mt/500k/decoder-d100-e100.pt'
@@ -39,8 +42,9 @@ decoder_lang.load_dict(decoder_attr_dict['lang'])
 
 # Word vectors
 # word_vectors = KeyedVectors.load_word2vec_format(params.WORD_VECTORS_FILE, binary=True)
-word_vectors = KeyedVectors.load(params.WORD_VECTORS_FILE)
+# word_vectors = KeyedVectors.load(params.WORD_VECTORS_FILE)
 # word_vectors = FastText.load_fasttext_format(params.WORD_VECTORS_FILE)
+word_vectors = util.load_wordvector_text(params.WORD_VECTORS_FILE)
 
 # Encoder & Decoder
 # encoder = WordEncoderBiRNN(encoder_attr_dict['hidden_size'], encoder_attr_dict['max_length'], encoder_lang)
@@ -53,7 +57,7 @@ attn_decoder.loadAttributes(decoder_attr_dict)
 # Trainer
 trainer = Trainer([], encoder, attn_decoder)
 
-'''
+
 sentence = input("Input : ")
 while (sentence != "<end>") :
     sentence = preprocessSentence(sentence, attn_decoder.max_length)
@@ -92,5 +96,5 @@ for result in results :
     fout.write("%s\n"%(result))
 fout.write("Akurasi : %.4f"%(hit/n_test))
 fout.close()
-
+'''
 

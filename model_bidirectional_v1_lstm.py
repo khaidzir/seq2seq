@@ -130,7 +130,7 @@ class WordEncoderBiRNN(BaseEncoderBiRNN):
             else :
                 embed = self.empty_vector
             embedding_inputs.append(embed)
-
+            
         return super(WordEncoderBiRNN, self).forward(embedding_inputs)
 
     # Get word index of every word in sentence
@@ -173,7 +173,7 @@ class PreTrainedEmbeddingEncoderBiRNN(BaseEncoderBiRNN) :
             lang.word2index = dict()
             lang.index2word = dict()
             lang.n_words = 0
-            chars = 'abcdefghijklmnopqrstuvwxyz0123456789'
+            chars = 'abcdefghijklmnopqrstuvwxyz0123456789-.'
             for c in chars :
                 lang.addWord(c)
             self.charbased_model = WordEncoderBiRNN(self.hidden_size//2, params.CHAR_LENGTH, lang, seeder=seeder)
@@ -223,12 +223,13 @@ class PreTrainedEmbeddingEncoderBiRNN(BaseEncoderBiRNN) :
         embedding_inputs = []
         for word in input :
             if (word not in self.word_vectors) and (self.char_embed) :
+                print(word)
                 inputs = [self.charbased_model.lang.word2index[c] for c in word]
                 inputs = Variable(torch.LongTensor(inputs))
                 if params.USE_CUDA :
                     inputs = inputs.cuda()
-                _, _, char_vector  = self.charbased_model(inputs)
-                embedding_inputs.append(char_vector)
+                _, _, (c_hidden, c_cell)  = self.charbased_model(inputs)
+                embedding_inputs.append(c_hidden)
             else :
                 embedding_inputs.append(self.get_word_vector(word))
         return super(PreTrainedEmbeddingEncoderBiRNN, self).forward(embedding_inputs)
