@@ -173,7 +173,7 @@ class PreTrainedEmbeddingEncoderBiRNN(BaseEncoderBiRNN) :
             lang.word2index = dict()
             lang.index2word = dict()
             lang.n_words = 0
-            chars = 'abcdefghijklmnopqrstuvwxyz0123456789-.'
+            chars = "abcdefghijklmnopqrstuvwxyz0123456789-.?,!:;'"
             for c in chars :
                 lang.addWord(c)
             self.charbased_model = WordEncoderBiRNN(self.hidden_size//2, params.CHAR_LENGTH, lang, seeder=seeder)
