@@ -223,7 +223,6 @@ class PreTrainedEmbeddingEncoderBiRNN(BaseEncoderBiRNN) :
         embedding_inputs = []
         for word in input :
             if (word not in self.word_vectors) and (self.char_embed) :
-                print(word)
                 inputs = [self.charbased_model.lang.word2index[c] for c in word]
                 inputs = Variable(torch.LongTensor(inputs))
                 if params.USE_CUDA :
