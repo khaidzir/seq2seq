@@ -4,7 +4,7 @@ OOV_INDEX = -1
 USE_CUDA = torch.cuda.is_available()
 SOS_TOKEN = '<SOS>'
 EOS_TOKEN = '<EOS>'
-SEEDER = 88888888
+SEEDER = 39862021
 CHAR_LENGTH = 50
 # WORD_VECTORS_FILE = 'word_vector/prosa-w2v/prosa.vec'
 

@@ -192,7 +192,12 @@ class Trainer:
         return loss
 
     # main function, iterating the training process
-    def train_batch(self, learning_rate=0.01, print_every=1000, epoch=1, batch_size=1):
+    def train_batch(self, learning_rate=0.01, print_every=1000, epoch=1, batch_size=1, save_every=0, folder_model=None):
+
+        assert ( (save_every > 0 and folder_model is not None) or save_every <= 0 )
+
+        if folder_model is not None and folder_model[-1] != '/' :
+            folder_model += '/'
 
         start = time.time()
         print_loss_total = 0
@@ -253,6 +258,10 @@ class Trainer:
                 loss.backward()
                 encoder_optimizer.step()
                 decoder_optimizer.step()
+
+            if save_every > 0 and (ep+1)%save_every == 0 :
+                torch.save(self.encoder.getAttrDict(), folder_model + 'encoder-e' + str(ep+1) + '.pt')
+                torch.save(self.decoder.getAttrDict(), folder_model + 'decoder-e' + str(ep+1) + '.pt')
 
     # evaluation section
     def evaluate(self, sentence):

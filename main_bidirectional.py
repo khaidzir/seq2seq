@@ -91,9 +91,9 @@ torch.save(attn_decoder.getAttrDict(), 'model/mt/1m/decoder-d' + str(hidden_size
 
 hidden_size = word_vectors.vector_size
 # hidden_size = 128
-max_length = 80
+max_length = 50
 # encoder = WordEncoderBiRNN(hidden_size, max_length, src_lang, seeder=params.SEEDER)
-encoder = PreTrainedEmbeddingEncoderBiRNN(word_vectors, max_length, char_embed=True, seeder=params.SEEDER)
+encoder = PreTrainedEmbeddingEncoderBiRNN(word_vectors, max_length, char_embed=False, seeder=params.SEEDER)
 attn_decoder = AttnDecoderRNN(hidden_size*2, max_length, tgt_lang, seeder=params.SEEDER)
 
 # Load and continue train
@@ -105,14 +105,16 @@ attn_decoder = AttnDecoderRNN(hidden_size*2, max_length, tgt_lang, seeder=params
 # attn_decoder.loadAttributes(decoder_dict)
 
 num_iter = len(pairs)
-epoch=100
-batch_size = 32
+epoch=25
+batch_size = 16
+save_every = 5
+folder_model = 'model/dialogue/rmsprop'
 trainer = Trainer(pairs, encoder, attn_decoder)
 # trainer.train(num_iter, print_every=num_iter//1000, epoch=epoch)
-trainer.train_batch(print_every=32, epoch=epoch, batch_size=batch_size)
+trainer.train_batch(print_every=17, epoch=epoch, batch_size=batch_size, save_every=save_every, folder_model=folder_model)
 # trainer.evaluateRandomly()
 trainer.evaluateTrainSet()
 
-torch.save(encoder.getAttrDict(), 'model/dialogue/encoder-charembed-d' + str(hidden_size) + '-e' + str(epoch) + '.pt')
-torch.save(attn_decoder.getAttrDict(), 'model/dialogue/decoder-charembed-d' + str(hidden_size) + '-e' + str(epoch) + '.pt')
+# torch.save(encoder.getAttrDict(), 'model/dialogue/encoder-rmsprop-d' + str(hidden_size) + '-e' + str(epoch) + '.pt')
+# torch.save(attn_decoder.getAttrDict(), 'model/dialogue/decoder-rmsprop-d' + str(hidden_size) + '-e' + str(epoch) + '.pt')
 #################
