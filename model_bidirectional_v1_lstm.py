@@ -9,6 +9,78 @@ import params
 import random
 import time
 
+def build_char_lang() :
+    lang = Lang()
+    lang.word2index = dict()
+    lang.index2word = dict()
+    lang.n_words = 0
+    chars = "abcdefghijklmnopqrstuvwxyz0123456789-.?,!:;'"
+    for c in chars :
+        lang.addWord(c)
+    return lang
+
+# Model for word feature extraction based on character embedding using CNN
+class CNNWordFeature(nn.Module) :
+    def __init__(self, feature_size, max_length, seeder=int(time.time()) ) :
+        super(CNNWordFeature, self).__init__()
+        random.seed(seeder)
+        torch.manual_seed(seeder)
+        if params.USE_CUDA :
+            torch.cuda.manual_seed_all(seeder)
+        self.feature_size = feature_size
+        self.max_length = max_length
+        self.lang = build_char_lang()
+        self.input_size = self.lang.n_words
+
+        # embedding layer
+        self.embedding = nn.Embedding(self.input_size, self.feature_size)
+
+        # convolutional layers for 2,3,4 window
+        self.conv2 = nn.Conv2d(1, self.feature_size, (2,self.feature_size))
+        self.conv3 = nn.Conv2d(1, self.feature_size, (3,self.feature_size))
+        self.conv4 = nn.Conv2d(1, self.feature_size, (4,self.feature_size))
+
+        # maxpool layers
+        self.maxpool2 = nn.MaxPool2d(kernel_size=(self.max_length-1,1))
+        self.maxpool3 = nn.MaxPool2d(kernel_size=(self.max_length-2,1))
+        self.maxpool4 = nn.MaxPool2d(kernel_size=(self.max_length-3,1))
+
+        # linear layer
+        self.linear = nn.Linear(3*feature_size, feature_size)
+
+        if params.USE_CUDA :
+            self.cuda()
+
+    # char_idxs is a list of char index (list of torch.autograd.Variable)
+    def forward(self, char_idxs) :
+        # Get embedding for every chars
+        embeddings = Variable(torch.zeros(self.max_length, self.feature_size))
+        if params.USE_CUDA :
+            embeddings = embeddings.cuda()
+        for i in range(len(char_idxs)) :
+            c_embed = self.embedding(char_idxs[i])
+            embeddings[i] = c_embed.view(1,1,-1)
+        embeddings = embeddings.view(1, 1, self.max_length, -1)
+
+        # Pass to cnn
+        relu2 = F.relu(self.conv2(embeddings))
+        relu3 = F.relu(self.conv3(embeddings))
+        relu4 = F.relu(self.conv4(embeddings))
+
+        # Max pooling
+        pool2 = self.maxpool2(relu2)
+        pool3 = self.maxpool3(relu3)
+        pool4 = self.maxpool4(relu4)
+
+        # Concat
+        concat = torch.cat((pool2,pool3,pool4)).view(1,-1)
+
+        # Pass to linear layer
+        output = self.linear(concat).view(-1)
+
+        return output
+
+
 # Encoder base class, only contains hidden_size, lstm layer, and empty vector
 class BaseEncoderBiRNN(nn.Module):
     def __init__(self, hidden_size, max_length, seeder=int(time.time()) ):
@@ -92,6 +164,94 @@ class BaseEncoderBiRNN(nn.Module):
         self.max_length = attr_dict['max_length']
         self.model_type = attr_dict['model_type']
 
+# Encoder ...
+class WordCharEncoderBiRNN(BaseEncoderBiRNN) :
+    def __init__(self, hidden_size, max_length, char_feature='cnn', seeder=int(time.time())) :
+        super(WordCharEncoderBiRNN, self).__init__(hidden_size*2, max_length, seeder=seeder)
+        assert (char_feature == 'rnn' or char_feature == 'cnn')
+        if char_feature == 'rnn' :
+            self.charbased_model = self.build_rnn(seeder)
+        elif char_feature == 'cnn' :
+            self.charbased_model = self.build_cnn(seeder)
+        self.char_feature = char_feature
+
+    def build_cnn(self, seeder=int(time.time()) ) :
+        lang = build_char_lang()
+        return CNNWordFeature(self.hidden_size//2, params.CHAR_LENGTH, seeder=seeder)
+
+    def build_rnn(self, seeder=int(time.time()) ) :
+        lang = build_char_lang()
+        return WordEncoderBiRNN(self.hidden_size//4, params.CHAR_LENGTH, lang, seeder=seeder)
+
+    # Word_embeddings is word_vector of sentence, words is list of word
+    def forward(self, word_embeddings, words) :
+        assert(len(word_embeddings) == len(words))
+
+        # Get word embeddings extracted from its character
+        char_embeddings = []
+        for word in words :
+            # Get character indexes
+            inputs = [self.charbased_model.lang.word2index[c] for c in word]
+            inputs = Variable(torch.LongTensor(inputs))
+            if params.USE_CUDA :
+                inputs = inputs.cuda()
+            
+            # Get vector rep of word (pass to charbased_model)
+            if self.char_feature == 'cnn' :
+                vec = self.charbased_model(inputs)
+            else :
+                _, _, (vec, cell)  = self.charbased_model(inputs)
+            
+            # Add to list of word embeddings based on char
+            char_embeddings.append(vec.view(1,1,-1))
+
+        # concat word_embeddings with char_embeddings
+        embeddings = []
+        for i in range(len(word_embeddings)) :
+            embeddings.append(torch.cat((word_embeddings[i],char_embeddings[i]),2) )
+
+        # print('word embedding :')
+        # print(word_embeddings)
+        # print('word-char embedding :')
+        # print(char_embeddings)
+        # print('embedding :')
+        # print(embeddings)
+
+        # Forward to rnn
+        return super(WordCharEncoderBiRNN, self).forward(embeddings)
+
+
+class PreTrainedEmbeddingWordCharEncoderBiRNN(WordCharEncoderBiRNN) :
+    def __init__(self, word_vectors, max_length, char_feature='cnn', seeder=int(time.time())) :
+        super(PreTrainedEmbeddingWordCharEncoderBiRNN, self).__init__(word_vectors.vector_size, max_length, char_feature, seeder=seeder)
+        empty_vector = np.array([0. for _ in range(word_vectors.vector_size)])
+        self.empty_vector = Variable(torch.Tensor(empty_vector).view(1, 1, -1))
+        if params.USE_CUDA :
+            self.empty_vector = self.empty_vector.cuda()
+        self.cache_dict = dict()
+        self.word_vectors = word_vectors
+
+    def get_word_vector(self, word_input) :
+        if word_input in self.cache_dict :
+            return self.cache_dict[word_input]
+        else :
+            if word_input in self.word_vectors :
+                # If word is not oov, take embedding vector of it
+                word_embed = self.word_vectors[word_input]
+                word_vector = Variable(torch.Tensor(word_embed)).view(1, 1, -1)
+                if params.USE_CUDA:
+                    word_vector = word_vector.cuda()
+            else :
+                # Word is oov, take [0, 0, 0, ...] as embedding vectors
+                word_vector = self.empty_vector
+            self.cache_dict[word_input] = word_vector
+            return word_vector
+
+    # Feed forward method, input is list of word
+    def forward(self, input) :
+        word_embeddings = [self.get_word_vector(word) for word in input]
+        return super(PreTrainedEmbeddingWordCharEncoderBiRNN, self).forward(word_embeddings, input)
+
 # Encoder word based
 class WordEncoderBiRNN(BaseEncoderBiRNN):
     def __init__(self, hidden_size, max_length, lang, seeder=int(time.time())):
@@ -120,7 +280,7 @@ class WordEncoderBiRNN(BaseEncoderBiRNN):
         if params.USE_CUDA :
             self.cuda()
 
-    # Feed forward method, input is a list of index word (list of torch.autograd.Variable)
+    # Feed forward method, input is a list of word index (list of torch.autograd.Variable)
     def forward(self, input):
         # Get embedding vector
         embedding_inputs = []
