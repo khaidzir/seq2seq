@@ -97,18 +97,25 @@ class BaseEncoderBiRNN(nn.Module):
         self.fwd_lstm = nn.LSTM(hidden_size, hidden_size)
         self.rev_lstm = nn.LSTM(hidden_size, hidden_size)
 
-        if params.USE_CUDA :
-            self.cuda()
-
         # define empty word vector (oov)
         self.empty_vector = np.array([0. for _ in range(hidden_size)])
+
+        # define initial cell and hidden vector
+        self.h0 = Variable(torch.zeros(1, 1, self.hidden_size))
+        self.c0 = Variable(torch.zeros(1, 1, self.hidden_size))
+
+        if params.USE_CUDA :
+            self.cuda()
+            self.h0 = self.h0.cuda()
+            self.c0 = self.c0.cuda()
 
     # Input is list of embedding
     def forward(self, input):
         embedding_inputs = input
 
         # Forward to fwd_lstm unit
-        (fwd_hidden, fwd_cell) = self.initHidden()
+        # (fwd_hidden, fwd_cell) = self.initHidden()
+        fwd_hidden, fwd_cell = self.h0, self.c0
         fwd_outputs = Variable(torch.zeros(self.max_length, self.hidden_size))
         if params.USE_CUDA :
             fwd_outputs = fwd_outputs.cuda()
