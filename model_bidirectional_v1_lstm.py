@@ -226,10 +226,12 @@ class PreTrainedEmbeddingWordCharEncoderBiRNN(WordCharEncoderBiRNN) :
         super(PreTrainedEmbeddingWordCharEncoderBiRNN, self).__init__(word_vectors.vector_size, max_length, char_feature, seeder=seeder)
         empty_vector = np.array([0. for _ in range(word_vectors.vector_size)])
         self.empty_vector = Variable(torch.Tensor(empty_vector).view(1, 1, -1))
-        if params.USE_CUDA :
-            self.empty_vector = self.empty_vector.cuda()
         self.cache_dict = dict()
         self.word_vectors = word_vectors
+        self.model_type = 'pre_trained_embedding_wordchar'
+        if params.USE_CUDA :
+            self.cuda()
+            self.empty_vector = self.empty_vector.cuda()
 
     def get_word_vector(self, word_input) :
         if word_input in self.cache_dict :
@@ -251,6 +253,14 @@ class PreTrainedEmbeddingWordCharEncoderBiRNN(WordCharEncoderBiRNN) :
     def forward(self, input) :
         word_embeddings = [self.get_word_vector(word) for word in input]
         return super(PreTrainedEmbeddingWordCharEncoderBiRNN, self).forward(word_embeddings, input)
+
+    def getAttrDict(self):
+        return {
+            'model_type' : self.model_type,
+            'hidden_size' : self.hidden_size,
+            'max_length' : self.max_length,
+            'state_dict' : self.getCpuStateDict(),
+        }
 
 # Encoder word based
 class WordEncoderBiRNN(BaseEncoderBiRNN):

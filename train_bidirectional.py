@@ -25,12 +25,16 @@ class Trainer:
             return util.get_sequence_index(input, self.encoder.lang.word2index)
         elif self.encoder.model_type == 'pre_trained_embedding' :
             return input
+        elif self.encoder.model_type == 'pre_trained_embedding_wordchar' :
+            return input
 
     # Process pair so can be processed by encoder's forward
     def process_pair(self, pair) :
         if self.encoder.model_type == 'word_based' :
             return self.process_word_based_pair(pair)
         elif self.encoder.model_type == 'pre_trained_embedding' :
+            return self.process_pre_trained_embedding_pair(pair)
+        elif self.encoder.model_type == 'pre_trained_embedding_wordchar' :
             return self.process_pre_trained_embedding_pair(pair)
 
     # Process pairs to index of words
