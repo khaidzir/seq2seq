@@ -37,16 +37,16 @@ class CNNWordFeature(nn.Module) :
 
         # convolutional layers for 2,3,4 window
         self.conv2 = nn.Conv2d(1, self.feature_size, (2,self.feature_size))
-        self.conv3 = nn.Conv2d(1, self.feature_size, (3,self.feature_size))
-        self.conv4 = nn.Conv2d(1, self.feature_size, (4,self.feature_size))
+        # self.conv3 = nn.Conv2d(1, self.feature_size//2, (3,self.feature_size))
+        # self.conv4 = nn.Conv2d(1, self.feature_size//2, (4,self.feature_size))
 
         # maxpool layers
         self.maxpool2 = nn.MaxPool2d(kernel_size=(self.max_length-1,1))
-        self.maxpool3 = nn.MaxPool2d(kernel_size=(self.max_length-2,1))
-        self.maxpool4 = nn.MaxPool2d(kernel_size=(self.max_length-3,1))
+        # self.maxpool3 = nn.MaxPool2d(kernel_size=(self.max_length-2,1))
+        # self.maxpool4 = nn.MaxPool2d(kernel_size=(self.max_length-3,1))
 
         # linear layer
-        self.linear = nn.Linear(3*feature_size, feature_size)
+        self.linear = nn.Linear(2*(feature_size//2), feature_size)
 
         if params.USE_CUDA :
             self.cuda()
@@ -64,16 +64,17 @@ class CNNWordFeature(nn.Module) :
 
         # Pass to cnn
         relu2 = F.relu(self.conv2(embeddings))
-        relu3 = F.relu(self.conv3(embeddings))
-        relu4 = F.relu(self.conv4(embeddings))
+        # relu3 = F.relu(self.conv3(embeddings))
+        # relu4 = F.relu(self.conv4(embeddings))
 
         # Max pooling
         pool2 = self.maxpool2(relu2)
-        pool3 = self.maxpool3(relu3)
-        pool4 = self.maxpool4(relu4)
+        # pool3 = self.maxpool3(relu3)
+        # pool4 = self.maxpool4(relu4)
 
         # Concat
-        concat = torch.cat((pool2,pool3,pool4)).view(1,-1)
+        # concat = torch.cat((pool2,pool3,pool4)).view(1,-1)
+        concat = pool2.view(1,-1)
 
         # Pass to linear layer
         output = self.linear(concat).view(-1)
@@ -181,6 +182,7 @@ class WordCharEncoderBiRNN(BaseEncoderBiRNN) :
         elif char_feature == 'cnn' :
             self.charbased_model = self.build_cnn(seeder)
         self.char_feature = char_feature
+        self.model_type = ''
 
     def build_cnn(self, seeder=int(time.time()) ) :
         lang = build_char_lang()
@@ -208,7 +210,7 @@ class WordCharEncoderBiRNN(BaseEncoderBiRNN) :
                 vec = self.charbased_model(inputs)
             else :
                 _, _, (vec, cell)  = self.charbased_model(inputs)
-            
+
             # Add to list of word embeddings based on char
             char_embeddings.append(vec.view(1,1,-1))
 
@@ -227,6 +229,20 @@ class WordCharEncoderBiRNN(BaseEncoderBiRNN) :
         # Forward to rnn
         return super(WordCharEncoderBiRNN, self).forward(embeddings)
 
+    def loadAttributes(self, attr_dict) :
+        super(WordCharEncoderBiRNN, self).loadAttributes(attr_dict)
+        self.hidden_size = attr_dict['hidden_size']
+        self.max_length = attr_dict['max_length']
+        self.load_state_dict(attr_dict['state_dict'])
+
+    def getAttrDict() :
+        return {
+            'model_type' : self.model_type,
+            'char_feature' : self.char_feature,
+            'hidden_size' : self.hidden_size,
+            'max_length' : self.max_length,
+            'state_dict' : self.getCpuStateDict(),
+        }
 
 class PreTrainedEmbeddingWordCharEncoderBiRNN(WordCharEncoderBiRNN) :
     def __init__(self, word_vectors, max_length, char_feature='cnn', seeder=int(time.time())) :
@@ -251,7 +267,7 @@ class PreTrainedEmbeddingWordCharEncoderBiRNN(WordCharEncoderBiRNN) :
                 if params.USE_CUDA:
                     word_vector = word_vector.cuda()
             else :
-                # Word is oov, take [0, 0, 0, ...] as embedding vectors
+                # Word is oov, take [0, 0, 0, ...] as embedding vector
                 word_vector = self.empty_vector
             self.cache_dict[word_input] = word_vector
             return word_vector
@@ -264,10 +280,14 @@ class PreTrainedEmbeddingWordCharEncoderBiRNN(WordCharEncoderBiRNN) :
     def getAttrDict(self):
         return {
             'model_type' : self.model_type,
+            'char_feature' : self.char_feature,
             'hidden_size' : self.hidden_size,
             'max_length' : self.max_length,
             'state_dict' : self.getCpuStateDict(),
         }
+
+    def loadAttributes(self, attr_dict) :
+        super(PreTrainedEmbeddingWordCharEncoderBiRNN, self).loadAttributes(attr_dict)
 
 # Encoder word based
 class WordEncoderBiRNN(BaseEncoderBiRNN):
