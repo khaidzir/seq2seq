@@ -14,29 +14,30 @@ def build_char_lang() :
     lang.word2index = dict()
     lang.index2word = dict()
     lang.n_words = 0
-    chars = "abcdefghijklmnopqrstuvwxyz0123456789-.?,!:;'"
+    chars = "!\"$%&'()*+,-./0123456789:;<>?[]abcdefghijklmnopqrstuvwxyz"
     for c in chars :
         lang.addWord(c)
     return lang
 
 # Model for word feature extraction based on character embedding using CNN
 class CNNWordFeature(nn.Module) :
-    def __init__(self, feature_size, max_length, seeder=int(time.time()) ) :
+    def __init__(self, embedding_size, feature_size, max_length, seeder=int(time.time()) ) :
         super(CNNWordFeature, self).__init__()
         random.seed(seeder)
         torch.manual_seed(seeder)
         if params.USE_CUDA :
             torch.cuda.manual_seed_all(seeder)
+        self.embedding_size = embedding_size
         self.feature_size = feature_size
         self.max_length = max_length
         self.lang = build_char_lang()
-        self.input_size = self.lang.n_words
+        self.vocab_size = self.lang.n_words
 
         # embedding layer
-        self.embedding = nn.Embedding(self.input_size, self.feature_size)
+        self.embedding = nn.Embedding(self.vocab_size, self.embedding_size)
 
         # convolutional layers for 2,3,4 window
-        self.conv2 = nn.Conv2d(1, self.feature_size, (2,self.feature_size))
+        self.conv2 = nn.Conv2d(1, self.feature_size, (2,self.embedding_size))
         # self.conv3 = nn.Conv2d(1, self.feature_size//2, (3,self.feature_size))
         # self.conv4 = nn.Conv2d(1, self.feature_size//2, (4,self.feature_size))
 
@@ -84,22 +85,28 @@ class CNNWordFeature(nn.Module) :
 
 # Encoder base class, only contains hidden_size, lstm layer, and empty vector
 class BaseEncoderBiRNN(nn.Module):
-    def __init__(self, hidden_size, max_length, seeder=int(time.time()) ):
+    def __init__(self, input_size, hidden_size, max_length, dropout_p=0.0, seeder=int(time.time()) ):
         super(BaseEncoderBiRNN, self).__init__()
+        self.input_size = input_size
         self.hidden_size = hidden_size
         self.max_length = max_length
         self.model_type = 'base'
+        self.dropout_p = dropout_p
         random.seed(seeder)
         torch.manual_seed(seeder)
         if params.USE_CUDA :
             torch.cuda.manual_seed_all(seeder)
 
+        # Dropout layer
+        self.dropout = nn.Dropout(p=self.dropout_p)
+
         # Forward and backward RNN
-        self.fwd_lstm = nn.LSTM(hidden_size, hidden_size)
-        self.rev_lstm = nn.LSTM(hidden_size, hidden_size)
+        self.fwd_lstm = nn.LSTM(input_size, hidden_size)
+        self.rev_lstm = nn.LSTM(input_size, hidden_size)
 
         # define empty word vector (oov)
-        self.empty_vector = np.array([0. for _ in range(hidden_size)])
+        # self.empty_vector = np.array([0. for _ in range(hidden_size)])
+        self.empty_vector = np.array([0. for _ in range(input_size)])
 
         # define initial cell and hidden vector
         self.h0 = Variable(torch.zeros(1, 1, self.hidden_size))
@@ -121,6 +128,7 @@ class BaseEncoderBiRNN(nn.Module):
         if params.USE_CUDA :
             fwd_outputs = fwd_outputs.cuda()
         for k,embed in enumerate(embedding_inputs) :
+            embed = self.dropout(embed)
             fwd_output,(fwd_hidden, fwd_cell) = self.fwd_lstm(embed, (fwd_hidden, fwd_cell))
             fwd_outputs[k] = fwd_output[0][0]
 
@@ -168,14 +176,16 @@ class BaseEncoderBiRNN(nn.Module):
         return None
 
     def loadAttributes(self, attr_dict):
+        self.input_size = attr_dict['input_size']
         self.hidden_size = attr_dict['hidden_size']
         self.max_length = attr_dict['max_length']
         self.model_type = attr_dict['model_type']
+        self.dropout_p = attr_dict['dropout_p']
 
 # Encoder ...
 class WordCharEncoderBiRNN(BaseEncoderBiRNN) :
-    def __init__(self, hidden_size, max_length, char_feature='cnn', seeder=int(time.time())) :
-        super(WordCharEncoderBiRNN, self).__init__(hidden_size*2, max_length, seeder=seeder)
+    def __init__(self, input_size, hidden_size, max_length, char_feature='cnn', dropout_p=0.0, seeder=int(time.time())) :
+        super(WordCharEncoderBiRNN, self).__init__(input_size*2, hidden_size, max_length, dropout_p=dropout_p, seeder=seeder)
         assert (char_feature == 'rnn' or char_feature == 'cnn')
         if char_feature == 'rnn' :
             self.charbased_model = self.build_rnn(seeder)
@@ -186,11 +196,11 @@ class WordCharEncoderBiRNN(BaseEncoderBiRNN) :
 
     def build_cnn(self, seeder=int(time.time()) ) :
         lang = build_char_lang()
-        return CNNWordFeature(self.hidden_size//2, params.CHAR_LENGTH, seeder=seeder)
+        return CNNWordFeature(self.input_size//2, self.input_size//2, params.CHAR_LENGTH, seeder=seeder)
 
     def build_rnn(self, seeder=int(time.time()) ) :
         lang = build_char_lang()
-        return WordEncoderBiRNN(self.hidden_size//4, params.CHAR_LENGTH, lang, seeder=seeder)
+        return WordEncoderBiRNN(self.input_size//4, self.input_size//4, params.CHAR_LENGTH, lang, seeder=seeder)
 
     # Word_embeddings is word_vector of sentence, words is list of word
     def forward(self, word_embeddings, words) :
@@ -231,22 +241,22 @@ class WordCharEncoderBiRNN(BaseEncoderBiRNN) :
 
     def loadAttributes(self, attr_dict) :
         super(WordCharEncoderBiRNN, self).loadAttributes(attr_dict)
-        self.hidden_size = attr_dict['hidden_size']
-        self.max_length = attr_dict['max_length']
         self.load_state_dict(attr_dict['state_dict'])
 
     def getAttrDict() :
         return {
             'model_type' : self.model_type,
             'char_feature' : self.char_feature,
+            'input_size' : self.input_size,
             'hidden_size' : self.hidden_size,
             'max_length' : self.max_length,
+            'dropout_p' : self.dropout_p,
             'state_dict' : self.getCpuStateDict(),
         }
 
 class PreTrainedEmbeddingWordCharEncoderBiRNN(WordCharEncoderBiRNN) :
-    def __init__(self, word_vectors, max_length, char_feature='cnn', seeder=int(time.time())) :
-        super(PreTrainedEmbeddingWordCharEncoderBiRNN, self).__init__(word_vectors.vector_size, max_length, char_feature, seeder=seeder)
+    def __init__(self, word_vectors, hidden_size, max_length, char_feature='cnn', dropout_p=0.0, seeder=int(time.time())) :
+        super(PreTrainedEmbeddingWordCharEncoderBiRNN, self).__init__(word_vectors.vector_size, hidden_size, max_length, char_feature, dropout_p=dropout_p, seeder=seeder)
         empty_vector = np.array([0. for _ in range(word_vectors.vector_size)])
         self.empty_vector = Variable(torch.Tensor(empty_vector).view(1, 1, -1))
         self.cache_dict = dict()
@@ -281,8 +291,10 @@ class PreTrainedEmbeddingWordCharEncoderBiRNN(WordCharEncoderBiRNN) :
         return {
             'model_type' : self.model_type,
             'char_feature' : self.char_feature,
+            'input_size' : self.input_size,
             'hidden_size' : self.hidden_size,
             'max_length' : self.max_length,
+            'dropout_p' : self.dropout_p,
             'state_dict' : self.getCpuStateDict(),
         }
 
@@ -291,16 +303,16 @@ class PreTrainedEmbeddingWordCharEncoderBiRNN(WordCharEncoderBiRNN) :
 
 # Encoder word based
 class WordEncoderBiRNN(BaseEncoderBiRNN):
-    def __init__(self, hidden_size, max_length, lang, seeder=int(time.time())):
-        super(WordEncoderBiRNN, self).__init__(hidden_size, max_length, seeder=seeder)
+    def __init__(self, input_size, hidden_size, max_length, lang, dropout_p=0.0, seeder=int(time.time())):
+        super(WordEncoderBiRNN, self).__init__(input_size, hidden_size, max_length, dropout_p=dropout_p, seeder=seeder)
         self.model_type = 'word_based'
 
         # define parameters
         self.lang = lang
-        self.input_size = lang.n_words
+        self.vocab_size = lang.n_words
 
         # define layers
-        self.embedding = nn.Embedding(self.input_size, hidden_size)
+        self.embedding = nn.Embedding(self.vocab_size, self.input_size)
 
         # empty vector for oov
         self.empty_vector = Variable(torch.Tensor(self.empty_vector)).view(1, 1, -1)
@@ -312,7 +324,7 @@ class WordEncoderBiRNN(BaseEncoderBiRNN):
     def loadAttributes(self, attr_dict) :
         super(WordEncoderBiRNN, self).loadAttributes(attr_dict)
         self.lang.load_dict(attr_dict['lang'])
-        self.input_size = self.lang.n_words
+        self.vocab_size = self.lang.n_words
         self.load_state_dict(attr_dict['state_dict'])
         if params.USE_CUDA :
             self.cuda()
@@ -345,6 +357,7 @@ class WordEncoderBiRNN(BaseEncoderBiRNN):
     def getAttrDict(self):
         return {
             'model_type' : self.model_type,
+            'input_size' : self.input_size,
             'hidden_size' : self.hidden_size,
             'max_length' : self.max_length,
             'lang' : self.lang.getAttrDict(),
@@ -353,8 +366,8 @@ class WordEncoderBiRNN(BaseEncoderBiRNN):
 
 # Encoder using pre trained word embedding
 class PreTrainedEmbeddingEncoderBiRNN(BaseEncoderBiRNN) :
-    def __init__(self, word_vectors, max_length, char_embed=False, seeder=int(time.time())):
-        super(PreTrainedEmbeddingEncoderBiRNN, self).__init__(word_vectors.vector_size, max_length, seeder=seeder)
+    def __init__(self, word_vectors, hidden_size, max_length, dropout_p=0.0, char_embed=False, seeder=int(time.time())):
+        super(PreTrainedEmbeddingEncoderBiRNN, self).__init__(word_vectors.vector_size, hidden_size, max_length, dropout_p=dropout_p, seeder=seeder)
         self.model_type = 'pre_trained_embedding'
 
         # define word vector embedding
@@ -366,38 +379,14 @@ class PreTrainedEmbeddingEncoderBiRNN(BaseEncoderBiRNN) :
         # char embed
         self.char_embed = char_embed
         if self.char_embed :
-            lang = Lang()
-            lang.word2index = dict()
-            lang.index2word = dict()
-            lang.n_words = 0
-            chars = "abcdefghijklmnopqrstuvwxyz0123456789-.?,!:;'"
-            for c in chars :
-                lang.addWord(c)
+            lang = build_char_lang()
             self.charbased_model = WordEncoderBiRNN(self.hidden_size//2, params.CHAR_LENGTH, lang, seeder=seeder)
-
-        # word vector for start of string
-        sos = torch.ones(self.hidden_size)
-        self.sos_vector = Variable(sos).view(1, 1, -1)
-
-        # word vector for end of string
-        eos = torch.ones(self.hidden_size) * -1
-        self.eos_vector = Variable(eos).view(1, 1, -1)
 
         if params.USE_CUDA :
             self.cuda()
             self.empty_vector = self.empty_vector.cuda()
-            self.sos_vector = self.sos_vector.cuda()
-            self.eos_vector = self.eos_vector.cuda()
 
         self.cache_dict = dict()
-        self.cache_dict[params.SOS_TOKEN] = self.sos_vector
-        self.cache_dict[params.EOS_TOKEN] = self.eos_vector
-
-    def loadAttributes(self, attr_dict) :
-        super(PreTrainedEmbeddingEncoderBiRNN, self).loadAttributes(attr_dict)
-        self.hidden_size = attr_dict['hidden_size']
-        self.max_length = attr_dict['max_length']
-        self.load_state_dict(attr_dict['state_dict'])
 
     def get_word_vector(self, word_input) :
         if word_input in self.cache_dict :
@@ -430,12 +419,18 @@ class PreTrainedEmbeddingEncoderBiRNN(BaseEncoderBiRNN) :
                 embedding_inputs.append(self.get_word_vector(word))
         return super(PreTrainedEmbeddingEncoderBiRNN, self).forward(embedding_inputs)
 
+    def loadAttributes(self, attr_dict) :
+        super(PreTrainedEmbeddingEncoderBiRNN, self).loadAttributes(attr_dict)
+        self.load_state_dict(attr_dict['state_dict'])
+
     def getAttrDict(self):
         return {
             'model_type' : self.model_type,
+            'input_size' : self.input_size,
             'hidden_size' : self.hidden_size,
             'max_length' : self.max_length,
             'char_embed' : self.char_embed,
+            'dropout_p' : self.dropout_p,
             'state_dict' : self.getCpuStateDict(),
         }
 '''
@@ -498,7 +493,7 @@ class EmbeddingEncoderInputBiRNN(nn.Module):
 '''
 # Decoder
 class AttnDecoderRNN(nn.Module):
-    def __init__( self, hidden_size, max_length, lang, dropout_p=0.1, seeder=int(time.time()) ):
+    def __init__( self, input_size, hidden_size, max_length, lang, dropout_p=0.5, seeder=int(time.time()) ):
         super(AttnDecoderRNN, self).__init__()
         random.seed(seeder)
         torch.manual_seed(seeder)
@@ -506,6 +501,7 @@ class AttnDecoderRNN(nn.Module):
             torch.cuda.manual_seed_all(seeder)
 
         # define parameters
+        self.input_size = input_size
         self.hidden_size = hidden_size
         self.output_size = lang.n_words
         self.dropout_p = dropout_p
@@ -513,18 +509,18 @@ class AttnDecoderRNN(nn.Module):
         self.lang = lang
 
         # define layers
-        self.embedding = nn.Embedding(self.output_size, self.hidden_size)
-        self.attn = nn.Linear(self.hidden_size * 2, self.max_length)
-        # self.attn_combine = nn.Linear(self.hidden_size * 3, self.hidden_size)
-        self.attn_combine = nn.Linear(self.hidden_size * 2, self.hidden_size)
+        self.embedding = nn.Embedding(self.output_size, self.input_size)
+        self.attn = nn.Linear(self.input_size+self.hidden_size, self.max_length)
+        self.attn_combine = nn.Linear(self.input_size+self.hidden_size, self.input_size)
         self.dropout = nn.Dropout(self.dropout_p)
-        self.lstm = nn.LSTM(self.hidden_size, self.hidden_size)
+        self.lstm = nn.LSTM(self.input_size, self.hidden_size)
         self.out = nn.Linear(self.hidden_size, self.output_size)
 
         if params.USE_CUDA :
             self.cuda()
 
     def loadAttributes(self, attr_dict) :
+        self.input_size = attr_dict['input_size']
         self.hidden_size = attr_dict['hidden_size']
         self.dropout_p = attr_dict['dropout_p']
         self.max_length = attr_dict['max_length']
@@ -569,6 +565,7 @@ class AttnDecoderRNN(nn.Module):
 
     def getAttrDict(self):
         return {
+            'input_size' : self.input_size,
             'hidden_size' : self.hidden_size,
             'dropout_p' : self.dropout_p,
             'max_length' : self.max_length,

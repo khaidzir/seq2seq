@@ -1,7 +1,7 @@
 import torch
 from train_bidirectional import Trainer
 # from model_bidirectional import WordEncoderBiRNN, PreTrainedEmbeddingEncoderBiRNN, AttnDecoderRNN
-from model_bidirectional_v1_lstm import WordEncoderBiRNN, PreTrainedEmbeddingEncoderBiRNN, AttnDecoderRNN
+from model_bidirectional_v1_lstm import WordEncoderBiRNN, PreTrainedEmbeddingEncoderBiRNN, PreTrainedEmbeddingWordCharEncoderBiRNN, AttnDecoderRNN
 from preprocess import prepareData, unicodeToAscii, normalizeString
 import util
 from lang import Lang
@@ -28,9 +28,20 @@ def preprocessSentence(sentence, max_len) :
 # encoder_file = 'model/dialogue/encoder-charembed-d50-e100.pt'
 # decoder_file = 'model/dialogue/decoder-charembed-d50-e100.pt'
 
-encoder_file = '/home/prosa/Works/Text/seq2seq/model/dialogue/fix/word/encoder-e15.pt'
-decoder_file = '/home/prosa/Works/Text/seq2seq/model/dialogue/fix/word/decoder-e15.pt'
+# encoder_file = '/home/prosa/Works/Text/seq2seq/model/dialogue/fix/word/encoder-e15.pt'
+# decoder_file = '/home/prosa/Works/Text/seq2seq/model/dialogue/fix/word/decoder-e15.pt'
 
+# encoder_file = '/home/prosa/Works/Text/seq2seq/model/dialogue/dummy/word/lr10-3/encoder-e50.pt'
+# decoder_file = '/home/prosa/Works/Text/seq2seq/model/dialogue/dummy/word/lr10-3/decoder-e50.pt'
+
+encoder_file = '/home/prosa/Works/Text/seq2seq/model/dialogue/dummy/wordchar_rnn/encoder-e50.pt'
+decoder_file = '/home/prosa/Works/Text/seq2seq/model/dialogue/dummy/wordchar_rnn/decoder-e50.pt'
+
+# encoder_file = '/home/prosa/Works/Text/seq2seq/model/dialogue/dummy/word/encoder-e50.pt'
+# decoder_file = '/home/prosa/Works/Text/seq2seq/model/dialogue/dummy/word/decoder-e50.pt'
+
+# encoder_file = '/home/prosa/Works/Text/seq2seq/model/mt/tesis/oovchar_rnn/encoder-e100.pt'
+# decoder_file = '/home/prosa/Works/Text/seq2seq/model/mt/tesis/oovchar_rnn/decoder-e100.pt'
 
 encoder_attr_dict = torch.load(encoder_file)
 decoder_attr_dict = torch.load(decoder_file)
@@ -47,11 +58,14 @@ decoder_lang.load_dict(decoder_attr_dict['lang'])
 # word_vectors = FastText.load_fasttext_format(params.WORD_VECTORS_FILE)
 word_vectors = util.load_wordvector_text(params.WORD_VECTORS_FILE)
 
+# encoder_attr_dict['dropout_p'] = 0.0
+
 # Encoder & Decoder
 # encoder = WordEncoderBiRNN(encoder_attr_dict['hidden_size'], encoder_attr_dict['max_length'], encoder_lang)
-encoder = PreTrainedEmbeddingEncoderBiRNN(word_vectors, encoder_attr_dict['max_length'], char_embed=encoder_attr_dict['char_embed'])
+# encoder = PreTrainedEmbeddingEncoderBiRNN(word_vectors, encoder_attr_dict['hidden_size'] , encoder_attr_dict['max_length'], dropout_p=encoder_attr_dict['dropout_p'], char_embed=encoder_attr_dict['char_embed'])
+encoder = PreTrainedEmbeddingWordCharEncoderBiRNN(word_vectors, encoder_attr_dict['hidden_size'], encoder_attr_dict['max_length'], char_feature=encoder_attr_dict['char_feature'], dropout_p=encoder_attr_dict['dropout_p'], seeder=params.SEEDER)
 encoder.loadAttributes(encoder_attr_dict)
-attn_decoder = AttnDecoderRNN(decoder_attr_dict['hidden_size'], decoder_attr_dict['max_length'], decoder_lang)
+attn_decoder = AttnDecoderRNN(decoder_attr_dict['input_size'], decoder_attr_dict['hidden_size'], decoder_attr_dict['max_length'], decoder_lang, dropout_p=decoder_attr_dict['dropout_p'])
 encoder.loadAttributes(encoder_attr_dict)
 attn_decoder.loadAttributes(decoder_attr_dict)
 
@@ -73,7 +87,9 @@ while (sentence != "<end>") :
 
 '''
 
-file_test = "/home/prosa/Works/Text/korpus/dialogue/dataset/testset/testset1k.txt"
+# file_test = "/home/prosa/Works/Text/korpus/dialogue/dataset/testset/testset1k.txt"
+file_test = '/home/prosa/Works/Text/korpus/dialogue/misc.txt'
+# file_test = '/home/prosa/Works/Text/seq2seq/dataset/en-id-10k-v2.txt'
 results = []
 hit = 0
 n_test = 1
@@ -91,11 +107,14 @@ with open(file_test, "r", encoding="utf-8") as f :
         results.append(output)
         n_test += 1
 
-file_out = "/home/prosa/Works/Text/seq2seq/test/dialogue/fix/word/output1k.txt"
+
+# file_out = "/home/prosa/Works/Text/seq2seq/test/dialogue/fix/word/output1k.txt"
+# file_out = '/home/prosa/Works/Text/seq2seq/model/dialogue/dummy/word/hyp.txt'
+file_out = '/home/prosa/Works/Text/seq2seq/model/dialogue/dummy/wordchar_rnn/hyp.txt'
+# file_out = '/home/prosa/Works/Text/seq2seq/model/mt/tesis/oovchar_rnn/hyp.txt'
 fout = open(file_out, "w", encoding="utf-8")
 for result in results :
     fout.write("%s\n"%(result))
-fout.write("Akurasi : %.4f"%(hit/n_test))
+# fout.write("Akurasi : %.4f"%(hit/n_test))
 fout.close()
-
 
