@@ -257,9 +257,16 @@ class Trainer:
                         print('{0} ({1} {2}%) {3:0.4f}'.format(
                             timeSince(start, progress/n_total), progress, progress/n_total*100,
                             print_loss_avg))
-
+                
                 # back propagation, optimization
                 loss.backward()
+
+                # for param in self.encoder.parameters():
+                #     print(param.grad.data.sum())
+                # start debugger
+                # print( list(self.encoder.parameters())[0].grad )
+                # import pdb; pdb.set_trace()
+
                 encoder_optimizer.step()
                 decoder_optimizer.step()
 
@@ -327,13 +334,13 @@ class Trainer:
         self.decoder.train(False)
 
         # Forward to encoder
-        encoder_outputs,encoder_hidden = self.encoder(source_var)
+        encoder_outputs, encoder_hidden, projected_hidden = self.encoder(source_var)
 
         # SOS_TOKEN as first input word to decoder
         first_input = [self.decoder.lang.word2index[params.SOS_TOKEN]]
         
         # Encoder hidden state as initial decoder hidden state
-        decoder_hidden = encoder_hidden
+        decoder_hidden = projected_hidden
 
         global_list = []
         current_beam_width = beam_width
@@ -371,8 +378,8 @@ class Trainer:
         topv, topi = decoder_output.data.topk(beam_width)
         retval = []
         for i in range(beam_width) :
-            new_seq_word_idx = seq_word_idx + [topi[0][i]]
-            retval.append( (decoder_hidden, new_seq_word_idx, score+topv[0][i]) )
+            new_seq_word_idx = seq_word_idx + [topi[0][i].item()]
+            retval.append( (decoder_hidden, new_seq_word_idx, score+topv[0][i].item()) )
         return retval
 
     # Convert sequence of word index to sequence of words
