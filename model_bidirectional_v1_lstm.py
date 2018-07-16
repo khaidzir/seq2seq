@@ -37,17 +37,17 @@ class CNNWordFeature(nn.Module) :
         self.embedding = nn.Embedding(self.vocab_size, self.embedding_size)
 
         # convolutional layers for 2,3,4 window
-        self.conv2 = nn.Conv2d(1, self.feature_size, (2,self.embedding_size))
-        # self.conv3 = nn.Conv2d(1, self.feature_size//2, (3,self.feature_size))
-        # self.conv4 = nn.Conv2d(1, self.feature_size//2, (4,self.feature_size))
+        self.conv2 = nn.Conv2d(1, (self.feature_size//3)+(self.feature_size%3), (2,self.embedding_size))
+        self.conv3 = nn.Conv2d(1, self.feature_size//3, (3,self.feature_size))
+        self.conv4 = nn.Conv2d(1, self.feature_size//3, (4,self.feature_size))
 
         # maxpool layers
         self.maxpool2 = nn.MaxPool2d(kernel_size=(self.max_length-1,1))
-        # self.maxpool3 = nn.MaxPool2d(kernel_size=(self.max_length-2,1))
-        # self.maxpool4 = nn.MaxPool2d(kernel_size=(self.max_length-3,1))
+        self.maxpool3 = nn.MaxPool2d(kernel_size=(self.max_length-2,1))
+        self.maxpool4 = nn.MaxPool2d(kernel_size=(self.max_length-3,1))
 
         # linear layer
-        self.linear = nn.Linear(2*(feature_size//2), feature_size)
+        # self.linear = nn.Linear(2*(feature_size//2), feature_size)
 
         if params.USE_CUDA :
             self.cuda()
@@ -65,20 +65,23 @@ class CNNWordFeature(nn.Module) :
 
         # Pass to cnn
         relu2 = F.relu(self.conv2(embeddings))
-        # relu3 = F.relu(self.conv3(embeddings))
-        # relu4 = F.relu(self.conv4(embeddings))
+        relu3 = F.relu(self.conv3(embeddings))
+        relu4 = F.relu(self.conv4(embeddings))
 
         # Max pooling
-        pool2 = self.maxpool2(relu2)
-        # pool3 = self.maxpool3(relu3)
-        # pool4 = self.maxpool4(relu4)
-
+        pool2 = self.maxpool2(relu2).view(-1)
+        pool3 = self.maxpool3(relu3).view(-1)
+        pool4 = self.maxpool4(relu4).view(-1)
+        
         # Concat
-        # concat = torch.cat((pool2,pool3,pool4)).view(1,-1)
-        concat = pool2.view(1,-1)
+        concat = torch.cat((pool2,pool3,pool4))
+        # concat = pool2.view(1,-1)
+        # concat = torch.cat((pool2,pool3)).view(1,-1)
 
         # Pass to linear layer
-        output = self.linear(concat).view(-1)
+        # output = self.linear(concat).view(-1)
+        # output = pool2.view(-1)
+        output = concat
 
         return output
 
