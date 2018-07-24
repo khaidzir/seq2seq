@@ -189,16 +189,18 @@ class BaseEncoderBiRNN(nn.Module):
 class WordCharEncoderBiRNN(BaseEncoderBiRNN) :
     def __init__(self, input_size, hidden_size, max_length, char_feature='cnn', dropout_p=0.0, seeder=int(time.time())) :
         super(WordCharEncoderBiRNN, self).__init__(input_size*2, hidden_size, max_length, dropout_p=dropout_p, seeder=seeder)
-        assert (char_feature == 'rnn' or char_feature == 'cnn')
+        assert (char_feature == 'rnn' or char_feature == 'cnn' or char_feature == 'cnn_rnn')
         if char_feature == 'rnn' :
             self.charbased_model = self.build_rnn(seeder)
         elif char_feature == 'cnn' :
             self.charbased_model = self.build_cnn(seeder)
+        elif char_feature == 'cnn_rnn' :
+            self.charbased_rnn = self.build_rnn(seeder)
+            self.charbased_cnn = self.build_cnn(seeder)
         self.char_feature = char_feature
         self.model_type = ''
 
     def build_cnn(self, seeder=int(time.time()) ) :
-        lang = build_char_lang()
         return CNNWordFeature(self.input_size//2, self.input_size//2, params.CHAR_LENGTH, seeder=seeder)
 
     def build_rnn(self, seeder=int(time.time()) ) :
@@ -213,7 +215,10 @@ class WordCharEncoderBiRNN(BaseEncoderBiRNN) :
         char_embeddings = []
         for word in words :
             # Get character indexes
-            inputs = [self.charbased_model.lang.word2index[c] for c in word]
+            if self.char_feature == 'cnn_rnn' :
+                inputs = [self.charbased_cnn.lang.word2index[c] for c in word]
+            else :
+                inputs = [self.charbased_model.lang.word2index[c] for c in word]
             inputs = Variable(torch.LongTensor(inputs))
             if params.USE_CUDA :
                 inputs = inputs.cuda()
@@ -221,8 +226,15 @@ class WordCharEncoderBiRNN(BaseEncoderBiRNN) :
             # Get vector rep of word (pass to charbased_model)
             if self.char_feature == 'cnn' :
                 vec = self.charbased_model(inputs)
-            else :
+            elif self.char_feature == 'rnn' :
                 _, _, (vec, cell)  = self.charbased_model(inputs)
+            elif self.char_feature == 'cnn_rnn' :
+                cnn_vec = self.charbased_cnn(inputs)
+                _, _, (rnn_vec, cell) = self.charbased_rnn(inputs)
+                # Addition
+                # vec = cnn_vec + rnn_vec
+                # Average
+                vec = (cnn_vec + rnn_vec) / 2
 
             # Add to list of word embeddings based on char
             char_embeddings.append(vec.view(1,1,-1))
@@ -246,7 +258,7 @@ class WordCharEncoderBiRNN(BaseEncoderBiRNN) :
         super(WordCharEncoderBiRNN, self).loadAttributes(attr_dict)
         self.load_state_dict(attr_dict['state_dict'])
 
-    def getAttrDict() :
+    def getAttrDict(self) :
         return {
             'model_type' : self.model_type,
             'char_feature' : self.char_feature,

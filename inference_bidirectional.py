@@ -34,14 +34,29 @@ def preprocessSentence(sentence, max_len) :
 # encoder_file = '/home/prosa/Works/Text/seq2seq/model/dialogue/dummy/word/lr10-3/encoder-e50.pt'
 # decoder_file = '/home/prosa/Works/Text/seq2seq/model/dialogue/dummy/word/lr10-3/decoder-e50.pt'
 
-encoder_file = '/home/prosa/Works/Text/seq2seq/model/dialogue/dummy/wordchar_rnn/encoder-e50.pt'
-decoder_file = '/home/prosa/Works/Text/seq2seq/model/dialogue/dummy/wordchar_rnn/decoder-e50.pt'
+# encoder_file = '/home/prosa/Works/Text/seq2seq/model/dialogue/dummy/wordchar_rnn/encoder-e50.pt'
+# decoder_file = '/home/prosa/Works/Text/seq2seq/model/dialogue/dummy/wordchar_rnn/decoder-e50.pt'
+
+# encoder_file = '/home/prosa/Works/Text/seq2seq/model/dialogue/dummy/wordchar_cnn/encoder-e25.pt'
+# decoder_file = '/home/prosa/Works/Text/seq2seq/model/dialogue/dummy/wordchar_cnn/decoder-e25.pt'
 
 # encoder_file = '/home/prosa/Works/Text/seq2seq/model/dialogue/dummy/word/encoder-e50.pt'
 # decoder_file = '/home/prosa/Works/Text/seq2seq/model/dialogue/dummy/word/decoder-e50.pt'
 
 # encoder_file = '/home/prosa/Works/Text/seq2seq/model/mt/tesis/oovchar_rnn/encoder-e100.pt'
 # decoder_file = '/home/prosa/Works/Text/seq2seq/model/mt/tesis/oovchar_rnn/decoder-e100.pt'
+
+encoder_file = 'model/mt/tesis/wordchar_rnn/do_0_5/encoder-e100.pt'
+decoder_file = 'model/mt/tesis/wordchar_rnn/do_0_5/decoder-e100.pt'
+
+# encoder_file = 'model/mt/tesis/wordchar_cnn/do_0_5/encoder-e100.pt' 
+# decoder_file = 'model/mt/tesis/wordchar_cnn/do_0_5/decoder-e100.pt' 
+
+# encoder_file = 'model/mt/tesis/word/do_0_5/encoder-e100.pt'
+# decoder_file = 'model/mt/tesis/word/do_0_5/decoder-e100.pt'
+
+# encoder_file = '/home/prosa/Works/Text/seq2seq/model/dialogue/dummy/wordchar_cnn_rnn/avg/encoder-e50.pt'
+# decoder_file = '/home/prosa/Works/Text/seq2seq/model/dialogue/dummy/wordchar_cnn_rnn/avg/decoder-e50.pt'
 
 encoder_attr_dict = torch.load(encoder_file)
 decoder_attr_dict = torch.load(decoder_file)
@@ -88,30 +103,37 @@ while (sentence != "<end>") :
 '''
 
 # file_test = "/home/prosa/Works/Text/korpus/dialogue/dataset/testset/testset1k.txt"
-file_test = '/home/prosa/Works/Text/korpus/dialogue/misc.txt'
+# file_test = '/home/prosa/Works/Text/korpus/dialogue/misc.txt'
 # file_test = '/home/prosa/Works/Text/seq2seq/dataset/en-id-10k-v2.txt'
+file_test = '/home/prosa/Works/Text/seq2seq/test/mt/test-en-id-1k.v2.txt'
 results = []
 hit = 0
 n_test = 1
+beam_search = True
+beam_width = 5
 with open(file_test, "r", encoding="utf-8") as f :
     for line in f :
         line = line.strip()
         split = line.split('\t')
-        # outputs = trainer.evaluate_beam_search(line, 3)
-        # output = outputs[0][1:-1]
-        # output = ' '.join(output)
-        output_words, attentions = trainer.evaluate(split[0])
-        output = ' '.join(output_words[:-1])
-        if output.strip() == split[1].strip() :
-            hit += 1
+        if (beam_search) :
+            outputs = trainer.evaluate_beam_search(split[0], beam_width)
+            output = outputs[0][1:-1]
+            output = ' '.join(output)
+        else :
+            output_words, attentions = trainer.evaluate(split[0])
+            output = ' '.join(output_words[:-1])
         results.append(output)
-        n_test += 1
 
 
 # file_out = "/home/prosa/Works/Text/seq2seq/test/dialogue/fix/word/output1k.txt"
 # file_out = '/home/prosa/Works/Text/seq2seq/model/dialogue/dummy/word/hyp.txt'
-file_out = '/home/prosa/Works/Text/seq2seq/model/dialogue/dummy/wordchar_rnn/hyp.txt'
+# file_out = '/home/prosa/Works/Text/seq2seq/model/dialogue/dummy/wordchar_rnn/hyp-beam-3.txt'
+# file_out = '/home/prosa/Works/Text/seq2seq/model/dialogue/dummy/wordchar_cnn/hyp.txt'
+# file_out = '/home/prosa/Works/Text/seq2seq/model/dialogue/dummy/wordchar_cnn_rnn/avg/hyp.txt'
 # file_out = '/home/prosa/Works/Text/seq2seq/model/mt/tesis/oovchar_rnn/hyp.txt'
+file_out = '/home/prosa/Works/Text/seq2seq/model/mt/tesis/wordchar_rnn/do_0_5/hyp-beam-5.txt'
+# file_out = '/home/prosa/Works/Text/seq2seq/model/mt/tesis/word/do_0_5/hyp-beam-5.txt'
+# file_out = '/home/prosa/Works/Text/seq2seq/model/mt/tesis/wordchar_cnn/do_0_5/hyp-beam-3.txt'
 fout = open(file_out, "w", encoding="utf-8")
 for result in results :
     fout.write("%s\n"%(result))
