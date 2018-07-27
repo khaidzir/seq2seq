@@ -234,7 +234,9 @@ class WordCharEncoderBiRNN(BaseEncoderBiRNN) :
                 # Addition
                 # vec = cnn_vec + rnn_vec
                 # Average
-                vec = (cnn_vec + rnn_vec) / 2
+                # vec = (cnn_vec + rnn_vec) / 2
+                # Hadamard product
+                vec = cnn_vec * rnn_vec
 
             # Add to list of word embeddings based on char
             char_embeddings.append(vec.view(1,1,-1))
